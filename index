@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>凸点密码设计器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1 {
+            text-align: center;
+        }
+        .letter-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 60px);
+            gap: 10px;
+            margin: 20px auto;
+            justify-content: center;
+        }
+        .letter-cell {
+            width: 60px;
+            height: 60px;
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 16px;
+            text-align: center;
+        }
+        .letter-cell img {
+            width: 40px;
+            height: 40px;
+            margin-top: 5px;
+        }
+        .controls, .encryption-tool {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .grid-container {
+            display: grid;
+            gap: 5px;
+            margin: 20px auto;
+        }
+        .grid-item {
+            width: 40px;
+            height: 40px;
+            background-color: #e0e0e0;
+            border: 1px solid #ccc;
+            border-radius: 50%; /* 修改为圆形 */
+            cursor: pointer;
+        }
+        .grid-item.active {
+            background-color: #4caf50;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #fff;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+        .modal-header {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .close-btn {
+            float: right;
+            cursor: pointer;
+            font-size: 18px;
+        }
+        .result-grid-container {
+            display: flex;
+            gap: 20px; /* 调整字母网格之间的间距 */
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .result-grid {
+            display: grid;
+            border: 1px solid #ccc;
+        }
+        .result-grid .grid-item {
+            width: 40px;
+            height: 40px;
+            background-color: #e0e0e0;
+            border: 1px solid #ccc;
+            border-radius: 50%; /* 修改为圆形 */
+        }
+        .result-grid .grid-item.active {
+            background-color: #4caf50;
+        }
+    </style>
+</head>
+<body>
+    <h1>凸起点设计规则模拟</h1>
+
+    <!-- 网格尺寸调整 -->
+    <div class="controls">
+        <label for="rows">行数：</label>
+        <input type="number" id="rows" value="3" min="2" max="6" style="width: 50px;">
+        <label for="cols">列数：</label>
+        <input type="number" id="cols" value="3" min="2" max="6" style="width: 50px;">
+        <button onclick="updateGridSize()">更新网格尺寸</button>
+    </div>
+
+    <!-- 字母表展示 -->
+    <div class="letter-grid" id="letter-grid"></div>
+
+    <!-- 模态窗口：网格设计界面 -->
+    <div class="modal" id="modal">
+        <div class="modal-header">
+            <span id="modal-title">设计字母规则</span>
+            <span class="close-btn" onclick="closeModal()">✖</span>
+        </div>
+        <div id="grid" class="grid-container"></div>
+        <button onclick="saveLetterRule()">保存规则</button>
+    </div>
+
+    <!-- 加密工具 -->
+    <div class="encryption-tool">
+        <h2>加密工具</h2>
+        <div>
+            <label for="text-input">输入明文：</label>
+            <input type="text" id="text-input" placeholder="输入明文（如HELLO）">
+            <button onclick="encrypt()">加密</button>
+        </div>
+        <div id="result" class="result-grid-container">
+            <!-- 加密结果网格区域 -->
+        </div>
+    </div>
+
+    <script>
+        const letterGrid = document.getElementById('letter-grid');
+        const modal = document.getElementById('modal');
+        const gridContainer = document.getElementById('grid');
+        const resultDiv = document.getElementById('result');
+        let rows = 3;
+        let cols = 3;
+        let activePoints = [];
+        let currentLetter = '';
+
+        const rules = {}; // 存储规则：字母 -> { points, rows, cols }
+
+        // 初始化字母表 A-Z
+        function initLetterGrid() {
+            const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            letters.split('').forEach(letter => {
+                const cell = document.createElement('div');
+                cell.classList.add('letter-cell');
+                cell.dataset.letter = letter;
+                cell.innerHTML = `<strong>${letter}</strong>`;
+                cell.addEventListener('click', () => openGridEditor(letter));
+                letterGrid.appendChild(cell);
+            });
+        }
+
+        // 打开网格编辑器
+        function openGridEditor(letter) {
+            currentLetter = letter;
+            const rule = rules[letter] || { points: [], rows, cols };
+            activePoints = rule.points || [];
+            renderGrid(rule.rows || rows, rule.cols || cols);
+            document.getElementById('modal-title').innerText = `设计字母 ${letter}`;
+            modal.style.display = 'block';
+        }
+
+        // 渲染网格
+        function renderGrid(r, c) {
+            gridContainer.innerHTML = '';
+            gridContainer.style.gridTemplateColumns = `repeat(${c}, 40px)`;
+            for (let i = 0; i < r * c; i++) {
+                const gridItem = document.createElement('div');
+                gridItem.classList.add('grid-item');
+                if (activePoints.includes(i)) {
+                    gridItem.classList.add('active');
+                }
+                gridItem.addEventListener('click', () => toggleGridItem(gridItem, i));
+                gridContainer.appendChild(gridItem);
+            }
+        }
+
+        // 切换网格状态
+        function toggleGridItem(item, index) {
+            if (item.classList.contains('active')) {
+                item.classList.remove('active');
+                activePoints = activePoints.filter(point => point !== index);
+            } else {
+                item.classList.add('active');
+                activePoints.push(index);
+            }
+        }
+
+        // 保存规则
+        function saveLetterRule() {
+            if (activePoints.length === 0) {
+                alert('请至少选择一个凸起点！');
+                return;
+            }
+
+            // 检查是否与其他字母重复
+            for (const [letter, rule] of Object.entries(rules)) {
+                if (letter !== currentLetter && arraysEqual(rule.points, activePoints)) {
+                    alert(`当前设计的规则与字母 "${letter}" 的规则重复，请重新设计！`);
+                    return;
+                }
+            }
+
+            rules[currentLetter] = {
+                points: [...activePoints],
+                rows,
+                cols
+            };
+            updateLetterGrid();
+            closeModal();
+        }
+
+        // 检查两个数组是否相等
+        function arraysEqual(arr1, arr2) {
+            if (arr1.length !== arr2.length) return false;
+            const sorted1 = [...arr1].sort();
+            const sorted2 = [...arr2].sort();
+            return sorted1.every((value, index) => value === sorted2[index]);
+        }
+
+        // 更新字母表：显示缩略图
+        function updateLetterGrid() {
+            const letters = document.querySelectorAll('.letter-cell');
+            letters.forEach(cell => {
+                const letter = cell.dataset.letter;
+                cell.innerHTML = `<strong>${letter}</strong>`;
+                if (rules[letter]) {
+                    const img = document.createElement('img');
+                    img.src = generateThumbnail(rules[letter].points, rules[letter].rows, rules[letter].cols);
+                    cell.appendChild(img);
+                }
+            });
+        }
+
+        // 生成缩略图
+        function generateThumbnail(activePoints, r, c) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 40;
+            canvas.height = 40;
+            const ctx = canvas.getContext('2d');
+            const cellSize = 40 / Math.max(r, c);
+            activePoints.forEach(index => {
+                const x = (index % c) * cellSize;
+                const y = Math.floor(index / c) * cellSize;
+                ctx.fillStyle = '#4caf50';
+                ctx.beginPath();
+                ctx.arc(x + cellSize / 2, y + cellSize / 2, cellSize / 3, 0, 2 * Math.PI); // 绘制圆
+                ctx.fill();
+            });
+            return canvas.toDataURL();
+        }
+
+        // 加密功能
+        function encrypt() {
+            const text = document.getElementById('text-input').value.toUpperCase();
+            resultDiv.innerHTML = ''; // 清空结果区域
+            for (let char of text) {
+                if (rules[char]) {
+                    const { rows, cols, points } = rules[char];
+                    const grid = document.createElement('div');
+                    grid.classList.add('result-grid');
+                    grid.style.gridTemplateColumns = `repeat(${cols}, 40px)`;
+                    for (let i = 0; i < rows * cols; i++) {
+                        const cell = document.createElement('div');
+                        cell.classList.add('grid-item');
+                        if (points.includes(i)) {
+                            cell.classList.add('active');
+                        }
+                        grid.appendChild(cell);
+                    }
+                    resultDiv.appendChild(grid);
+                } else {
+                    alert(`字母 "${char}" 未设置规则，无法加密！`);
+                    return;
+                }
+            }
+        }
+
+        // 更新网格尺寸
+        function updateGridSize() {
+            rows = parseInt(document.getElementById('rows').value, 10);
+            cols = parseInt(document.getElementById('cols').value, 10);
+            renderGrid(rows, cols);
+        }
+
+        // 关闭模态窗口
+        function closeModal() {
+            modal.style.display = 'none';
+        }
+
+        // 初始化页面
+        initLetterGrid();
+    </script>
+</body>
+</html>
